@@ -156,10 +156,14 @@ export default function App() {
     alert(`Вы купили ${item.brand} ${item.model}!`);
   };
 
-  const sellToMarket = (item) => {
-    const price = Math.floor(RARITIES[item.rarity].sellPrice * 0.8);
+    const sellToMarket = (item) => {
+    const base = item.basePrice || RARITIES[item.rarity].sellPrice;
+    const starBonus = 1 + ((item.stars || 1) - 1) * 0.2;
+    const dirtPenalty = 1 - (item.dirt || 0) / 100;
+    const price = Math.max(50, Math.floor(base * starBonus * dirtPenalty));
+
     if(window.confirm(`Выставить ${item.brand} на рынок за ${price} $?`)) {
-      setBalance(prev => prev + price);
+      setBalance(prev => (isNaN(prev) ? 0 : prev) + price);
       setInventory(prev => prev.filter(i => i.uniqueId !== item.uniqueId));
       alert('Продано!');
     }
@@ -278,12 +282,17 @@ export default function App() {
   };
 
   // ВЕРНУЛИ ЦЕНУ В ПРОДАЖУ
-  const sellItem = (item) => {
-        const price = Math.floor((item.basePrice || RARITIES[item.rarity].sellPrice) * (1 + ((item.stars || 1) - 1) * 0.2) * (1 - (item.dirt || 0) / 100));
-    setBalance(prev => prev + price);
+    const sellItem = (item) => {
+    // Считаем цену: базовая цена * бонус за звезды * скидка за грязь (но не меньше 50)
+    const base = item.basePrice || RARITIES[item.rarity].sellPrice;
+    const starBonus = 1 + ((item.stars || 1) - 1) * 0.2;
+    const dirtPenalty = 1 - (item.dirt || 0) / 100;
+    const price = Math.max(50, Math.floor(base * starBonus * dirtPenalty));
+
+    setBalance(prev => (isNaN(prev) ? 0 : prev) + price); // Защита от NaN
     setStats(prev => ({ ...prev, earned: prev.earned + price }));
     setQuests(prev => ({ ...prev, sells: prev.sells + 1 }));
-    setSpinResults(prev => prev.filter(r => r.uniqueId !== item.uniqueId));
+    setSpinResults(prev => prev.filter(r => r.uniqueId !== item.uniqueId)); 
     addXP(5);
   };
 
@@ -297,12 +306,19 @@ export default function App() {
     return spinResults.reduce((sum, item) => sum + Math.floor(RARITIES[item.rarity].sellPrice * (1 + (item.stars - 1) * 0.2)), 0);
   };
 
-  const sellAll = () => {
-       const total = spinResults.reduce((sum, item) => sum + Math.floor((item.basePrice || RARITIES[item.rarity].sellPrice) * (1 + ((item.stars || 1) - 1) * 0.2) * (1 - (item.dirt || 0) / 100)), 0);
-    setBalance(prev => prev + total);
+    const sellAll = () => {
+    let total = 0;
+    spinResults.forEach(item => {
+      const base = item.basePrice || RARITIES[item.rarity].sellPrice;
+      const starBonus = 1 + ((item.stars || 1) - 1) * 0.2;
+      const dirtPenalty = 1 - (item.dirt || 0) / 100;
+      total += Math.max(50, Math.floor(base * starBonus * dirtPenalty));
+    });
+    
+    setBalance(prev => (isNaN(prev) ? 0 : prev) + total); // Защита от NaN
     setStats(prev => ({ ...prev, earned: prev.earned + total }));
     setQuests(prev => ({ ...prev, sells: prev.sells + spinResults.length }));
-    setSpinResults([]);
+    setSpinResults([]); 
     addXP(5 * spinResults.length);
   };
 
@@ -462,10 +478,10 @@ export default function App() {
                         <Stars count={item.stars || 1} />
                         
                                              {/* Вот сюда вставляем новый блок с ценой и грязью */}
-                      <span style={{ color: item.dirt > 50 ? '#ef4444' : '#4ade80', fontWeight: 'bold', fontSize: '11px' }}>
-                        Цена: {Math.floor((item.basePrice || RARITIES[item.rarity].sellPrice) * (1 + ((item.stars || 1) - 1) * 0.2) * (1 - (item.dirt || 0) / 100))} $
-                        {item.dirt > 0 && ` (Грязь: ${item.dirt}%)`}
-                      </span>
+                                              <span style={{ color: item.dirt > 50 ? '#ef4444' : '#4ade80', fontWeight: 'bold', fontSize: '11px' }}>
+                          Цена: {Math.max(50, Math.floor((item.basePrice || RARITIES[item.rarity].sellPrice) * (1 + ((item.stars || 1) - 1) * 0.2) * (1 - (item.dirt || 0) / 100)))} $
+                          {item.dirt > 0 && ` (Грязь: ${item.dirt}%)`}
+                        </span>
                         
                       </div>
                   </div>
