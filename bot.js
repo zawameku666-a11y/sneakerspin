@@ -6,7 +6,7 @@ dotenv.config();
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
 // Ссылка на игру
-const WEBAPP_URL = 'https://sneakerspin.vercel.app/game';
+const WEBAPP_URL = 'https://sneakerspin.vercel.app';
 
 bot.start((ctx) => {
   ctx.reply('Привет! Добро пожаловать в SneakerSpin 👟\nНажми на кнопку ниже, чтобы начать собирать коллекцию!', {
