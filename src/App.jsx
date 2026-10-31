@@ -69,6 +69,7 @@ export default function App() {
 
   const [upgradeItem, setUpgradeItem] = useState(null);
   const [showWheelModal, setShowWheelModal] = useState(false);
+    const [wheelRotation, setWheelRotation] = useState(0);
   const [wheelResult, setWheelResult] = useState(null);
   
   // Вернули состояние для знака вопроса
@@ -116,28 +117,34 @@ export default function App() {
     alert('🎁 Ты получил 5000 $!');
   };
 
-  const spinWheelOfFortune = () => {
+    const spinWheelOfFortune = () => {
     const now = Date.now();
-    if (now - lastWheel < 24 * 60 * 60 * 1000) return alert('Бесплатная прокрутка доступна раз в 24 часа!');
+    if (now - lastWheel < 24 * 60 * 60 * 1000) return alert('Доступно раз в 24 часа!');
     setLastWheel(now);
-    const prizes = [
-      { type: 'money', value: 500, text: '500 $' },
-      { type: 'money', value: 1000, text: '1000 $' },
-      { type: 'money', value: 2000, text: '2000 $' },
-      { type: 'xp', value: 50, text: '50 XP' },
-      { type: 'spin', value: 1, text: 'Бесплатная крутка' },
-      { type: 'sneaker', text: 'Редкий предмет' }
-    ];
-    const prize = prizes[Math.floor(Math.random() * prizes.length)];
-    setWheelResult(prize);
+
+    // Крутим колесо (добавляем 360 градусов + случайный сектор)
+    const randomDeg = Math.floor(Math.random() * 360);
+    setWheelRotation(prev => prev + 360 + randomDeg);
     setShowWheelModal(true);
-    if (prize.type === 'money') setBalance(prev => prev + prize.value);
-    if (prize.type === 'xp') addXP(prize.value);
-    if (prize.type === 'spin') setMultiplier(1);
-    if (prize.type === 'sneaker') {
-      const rarePool = SNEAKERS.filter(s => s.rarity === 'rare');
-      setInventory(prev => [...prev, { ...rarePool[Math.floor(Math.random() * rarePool.length)], uniqueId: crypto.randomUUID(), stars: 1 }]);
-    }
+
+    // Выдаем приз через 3 секунды (когда колесо остановится)
+    setTimeout(() => {
+      const prizes = [
+        { type: 'money', value: 500, text: '500 $' }, { type: 'money', value: 1000, text: '1000 $' },
+        { type: 'money', value: 5000, text: '5000 $' }, { type: 'xp', value: 100, text: '100 XP' },
+        { type: 'sneaker', text: 'Случайный предмет' }, { type: 'jackpot', text: 'ДЖЕКПОТ 50000 $!' }
+      ];
+      const prize = prizes[Math.floor(Math.random() * prizes.length)];
+      setWheelResult(prize);
+      
+      if (prize.type === 'money') setBalance(prev => prev + prize.value);
+      if (prize.type === 'jackpot') setBalance(prev => prev + 50000);
+      if (prize.type === 'xp') addXP(prize.value);
+      if (prize.type === 'sneaker') {
+        const pool = SNEAKERS.filter(s => s.rarity === 'rare' || s.rarity === 'epic');
+        setInventory(prev => [...prev, { ...pool[Math.floor(Math.random() * pool.length)], uniqueId: crypto.randomUUID(), stars: 1, dirt: 0 }]);
+      }
+    }, 3000);
   };
 
   const buyMarketItem = (item) => {
@@ -169,7 +176,22 @@ export default function App() {
     alert('Успешно улучшено!');
   };
 
-    const rollSneaker = (caseType) => {
+  // ВОТ СЮДА ВСТАВЛЯЙ ФУНКЦИЮ ПОМЫТЬ:
+  const washSneaker = (item) => {
+    if (item.dirt === 0) return alert('Кроссовок уже чистый!');
+    const cost = 500;
+    if (balance < cost) return alert(`Нужно ${cost} $ для мойки`);
+    
+    setBalance(prev => prev - cost);
+    setInventory(prev => prev.map(i => i.uniqueId === item.uniqueId ? { ...i, dirt: 0 } : i));
+    alert('🧼 Кроссовок чист как новый!');
+  };
+
+  // А вот тут уже идет следующая функция (rollSneaker или другая)
+  const rollSneaker = (caseType) => {
+    // ...
+
+      const rollSneaker = (caseType) => {
     const chances = CASES[caseType].chances;
     const roll = Math.random() * 100;
     let acc = 0;
@@ -177,7 +199,7 @@ export default function App() {
       acc += chance;
       if (roll < acc) {
         const pool = SNEAKERS.filter(s => s.rarity === key);
-        if (pool.length === 0) return { ...SNEAKERS[0], stars: 1, dirt: Math.floor(Math.random() * 100) };
+        if (pool.length === 0) return { ...SNEAKERS[0], stars: 1, dirt: 0 };
         const item = pool[Math.floor(Math.random() * pool.length)];
         return { 
             ...item, 
@@ -186,7 +208,7 @@ export default function App() {
         };
       }
     }
-    return { ...SNEAKERS[0], stars: 1, dirt: 50 };
+    return { ...SNEAKERS[0], stars: 1, dirt: 0 };
   };
 
     const washSneaker = (item) => {
@@ -377,8 +399,9 @@ export default function App() {
                       <Stars count={item.stars || 1} />
                       <div className="item-actions">
                         <button onClick={() => keepItem(item)} className="action-btn keep">Оставить</button>
-                        <button onClick={() => sellItem(item)} className="action-btn sell">
-                          Продать (${Math.floor(RARITIES[item.rarity].sellPrice * (1 + (item.stars - 1) * 0.2))})
+                                                <button onClick={() => sellItem(item)} className="action-btn sell">
+                          Продать (${Math.floor((item.basePrice || RARITIES[item.rarity].sellPrice) * (1 + ((item.stars || 1) - 1) * 0.2) * (1 - (item.dirt || 0) / 100))}) 
+                          {item.dirt > 0 && ` (Грязь: ${item.dirt}%)`}
                         </button>
                       </div>
                     </div>
@@ -446,10 +469,11 @@ export default function App() {
                         
                       </div>
                   </div>
-                  <div className="inv-actions">
-                    <button onClick={() => setUpgradeItem(item)} style={{ background: '#6366f1', color: '#fff' }}>Улучшить</button>
-                    <button onClick={() => sellToMarket(item)} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444' }}>Продать</button>
-                  </div>
+                                     <div className="inv-actions">
+                      <button onClick={() => setUpgradeItem(item)} style={{ background: '#6366f1', color: '#fff' }}>Улучшить</button>
+                      <button onClick={() => washSneaker(item)} style={{ background: '#0ea5e9', color: '#fff' }}>Помыть</button>
+                      <button onClick={() => sellToMarket(item)} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444' }}>Продать</button>
+                    </div>
                 </div>
               ))}
             </div>
