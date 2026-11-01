@@ -13,7 +13,7 @@ if (window.Telegram?.WebApp) {
 const CASE_CHANCES = {
   normal: { common: 70, rare: 20, epic: 8, legendary: 1.8, grail: 0.19, mythic: 0.01 },
   premium: { common: 0, rare: 40, epic: 40, legendary: 15, grail: 4.9, mythic: 0.1 },
-  elite: { common: 0, rare: 0, epic: 50, legendary: 35, grail: 14, mythic: 1 } // Только от Эпика и выше!
+  elite: { common: 0, rare: 0, epic: 50, legendary: 35, grail: 14, mythic: 1 }
 };
 
 const CASES = {
@@ -399,10 +399,21 @@ export default function App() {
               <div className="results-container">
                 <div className="results-header">
                   <span>Выпало ({spinResults.length}):</span>
-                  <div className="bulk-actions">
+                                    <div className="bulk-actions">
                     <button onClick={keepAll} className="bulk-btn keep">Оставить все</button>
-                    <button onClick={sellAll} className="bulk-btn sell">
-                      Продать все (${getTotalSellValue().toLocaleString()})
+                    <button onClick={() => {
+                      let total = 0;
+                      spinResults.forEach(item => {
+                        const base = item.basePrice || RARITIES[item.rarity].sellPrice;
+                        total += Math.max(50, Math.floor(base * (1 + ((item.stars || 1) - 1) * 0.2) * (1 - (item.dirt || 0) / 100)));
+                      });
+                      setBalance(prev => (isNaN(prev) ? 0 : prev) + total);
+                      setStats(prev => ({ ...prev, earned: prev.earned + total }));
+                      setQuests(prev => ({ ...prev, sells: prev.sells + spinResults.length }));
+                      setSpinResults([]);
+                      addXP(5 * spinResults.length);
+                    }} className="bulk-btn sell">
+                      Продать все (${spinResults.reduce((sum, item) => sum + Math.max(50, Math.floor((item.basePrice || RARITIES[item.rarity].sellPrice) * (1 + ((item.stars || 1) - 1) * 0.2) * (1 - (item.dirt || 0) / 100))), 0)})
                     </button>
                   </div>
                 </div>
@@ -414,11 +425,20 @@ export default function App() {
                       <span style={{fontSize: '10px', color: '#aaa', marginBottom: '5px'}}>{item.category}</span>
                       <Stars count={item.stars || 1} />
                       <div className="item-actions">
-                        <button onClick={() => keepItem(item)} className="action-btn keep">Оставить</button>
-                                                <button onClick={() => sellItem(item)} className="action-btn sell">
-                          Продать (${Math.floor((item.basePrice || RARITIES[item.rarity].sellPrice) * (1 + ((item.stars || 1) - 1) * 0.2) * (1 - (item.dirt || 0) / 100))}) 
-                          {item.dirt > 0 && ` (Грязь: ${item.dirt}%)`}
-                        </button>
+                        <button onClick={() => {
+  const base = item.basePrice || RARITIES[item.rarity].sellPrice;
+  const starBonus = 1 + ((item.stars || 1) - 1) * 0.2;
+  const dirtPenalty = 1 - (item.dirt || 0) / 100;
+  const price = Math.max(50, Math.floor(base * starBonus * dirtPenalty));
+  
+  setBalance(prev => (isNaN(prev) ? 0 : prev) + price);
+  setStats(prev => ({ ...prev, earned: prev.earned + price }));
+  setQuests(prev => ({ ...prev, sells: prev.sells + 1 }));
+  setSpinResults(prev => prev.filter(r => r.uniqueId !== item.uniqueId)); 
+  addXP(5);
+}} className="action-btn sell">
+  Продать (${Math.max(50, Math.floor((item.basePrice || RARITIES[item.rarity].sellPrice) * (1 + ((item.stars || 1) - 1) * 0.2) * (1 - (item.dirt || 0) / 100)))})
+</button>
                       </div>
                     </div>
                   ))}
@@ -485,11 +505,23 @@ export default function App() {
                         
                       </div>
                   </div>
-                                     <div className="inv-actions">
-                      <button onClick={() => setUpgradeItem(item)} style={{ background: '#6366f1', color: '#fff' }}>Улучшить</button>
-                      <button onClick={() => washSneaker(item)} style={{ background: '#0ea5e9', color: '#fff' }}>Помыть</button>
-                      <button onClick={() => sellToMarket(item)} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444' }}>Продать</button>
-                    </div>
+                       <div className="inv-actions">
+  <button onClick={() => setUpgradeItem(item)} style={{ background: '#6366f1', color: '#fff' }}>Улучшить</button>
+  <button onClick={() => washSneaker(item)} style={{ background: '#0ea5e9', color: '#fff' }}>Помыть</button>
+  <button onClick={() => {
+    // Считаем цену прямо здесь
+    const base = item.basePrice || RARITIES[item.rarity].sellPrice;
+    const starBonus = 1 + ((item.stars || 1) - 1) * 0.2;
+    const dirtPenalty = 1 - (item.dirt || 0) / 100;
+    const price = Math.max(50, Math.floor(base * starBonus * dirtPenalty));
+    
+    if(window.confirm(`Выставить ${item.brand} на рынок за ${price} $?`)) {
+      setBalance(prev => (isNaN(prev) ? 0 : prev) + price);
+      setInventory(prev => prev.filter(i => i.uniqueId !== item.uniqueId));
+      alert('Продано!');
+    }
+  }} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444' }}>Продать</button>
+</div>
                 </div>
               ))}
             </div>
